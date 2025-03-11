@@ -1,0 +1,155 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Borsa Analize - Kayıt Ol{% endblock %}
+
+{% block stylesheets %}
+{{ parent() }}
+<style>
+    .g-recaptcha {
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: center;
+    }
+    .recaptcha-error {
+        color: #dc3545;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+    .alert-danger {
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block javascripts %}
+{{ parent() }}
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+{% endblock %}
+
+{% block body %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Kayıt Ol</h3>
+                </div>
+                <div class="card-body">
+                    <div id="register-errors" class="alert alert-danger d-none"></div>
+
+                    <form id="registration-form">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token('register') }}">
+                        
+                        <div class="form-group mb-3">
+                            <label for="firstName">Adı:</label>
+                            <input type="text" id="firstName" name="firstName" class="form-control" required>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="lastName">Soyadı:</label>
+                            <input type="text" id="lastName" name="lastName" class="form-control" required>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="email">Email:</label>
+                            <input type="email" id="email" name="email" class="form-control" required>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="password">Şifre:</label>
+                            <input type="password" id="password" name="password" class="form-control" required>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label>Robot Doğrulaması:</label>
+                            <div class="g-recaptcha" data-sitekey="{{ google_recaptcha_site_key }}"></div>
+                            <div id="recaptcha-error" class="recaptcha-error d-none">Lütfen robot olmadığınızı doğrulayın.</div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button class="btn btn-primary" type="submit">Kayıt Ol</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-center">
+                    <p class="mb-0">Zaten hesabınız var mı? <a href="{{ path('app_login') }}">Giriş Yap</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('registration-form');
+    const errorsContainer = document.getElementById('register-errors');
+    const recaptchaError = document.getElementById('recaptcha-error');
+
+    // reCAPTCHA yüklenme kontrolü
+    let recaptchaInterval = setInterval(function() {
+        if (typeof grecaptcha !== 'undefined') {
+            clearInterval(recaptchaInterval);
+            console.log('reCAPTCHA yüklendi');
+        }
+    }, 100);
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // reCAPTCHA hata mesajını gizle
+        recaptchaError.classList.add('d-none');
+        errorsContainer.classList.add('d-none');
+
+        const recaptchaResponse = grecaptcha.getResponse();
+        if (!recaptchaResponse) {
+            recaptchaError.classList.remove('d-none');
+            return;
+        }
+
+        const formData = {
+            firstName: document.getElementById('firstName').value,
+            lastName: document.getElementById('lastName').value,
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value,
+            _csrf_token: document.querySelector('input[name="_csrf_token"]').value,
+            recaptcha: recaptchaResponse
+        };
+
+        fetch('{{ path('api_register') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-Token': formData._csrf_token
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.message && data.message.includes('başarıyla')) {
+                window.location.href = '{{ path('app_login') }}';
+            } else if (data.errors) {
+                errorsContainer.classList.remove('d-none');
+                errorsContainer.innerHTML = '';
+                
+                for (const field in data.errors) {
+                    const errorMsg = document.createElement('p');
+                    errorMsg.textContent = `${field}: ${data.errors[field]}`;
+                    errorsContainer.appendChild(errorMsg);
+                }
+            } else if (data.message) {
+                errorsContainer.classList.remove('d-none');
+                errorsContainer.textContent = data.message;
+            }
+            grecaptcha.reset();
+        })
+        .catch(error => {
+            errorsContainer.classList.remove('d-none');
+            errorsContainer.textContent = 'Bir hata oluştu. Lütfen daha sonra tekrar deneyin.';
+            console.error('Error:', error);
+            grecaptcha.reset();
+        });
+    });
+});
+</script>
+{% endblock %} 
